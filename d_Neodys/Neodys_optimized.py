@@ -123,7 +123,7 @@ def main():
 
 
     filename=get_neodys_list(date)
-    
+    #filename='test.txt'
 
     
     with open(filename) as f:

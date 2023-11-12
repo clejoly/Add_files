@@ -4,23 +4,24 @@
 Created on Sat Mar 11 15:17:06 2023
 
 @author: cassandralejoly
+
+Series of functions created to be used by the add_file functions to create the set of add file documents.
 """
 
-
-
-import numpy as np
-import pandas as pd
+import os
+import requests
+import json
+import datetime
+import time
 from pathlib import Path
+
+from pandas import json_normalize
+import pandas as pd
+import numpy as np
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service as ChromeService
-import time
-import os
-import requests
-from pandas import json_normalize
-import json
-import datetime
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -33,42 +34,80 @@ from selenium.webdriver.support import expected_conditions as EC
 
 
 
-#DONE
+
 def get_driver():
+    """ Sets the chromedriver location and allows it to be ran automatically """
     options = webdriver.ChromeOptions()
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
-    driver = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=options)
+    driver = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', 
+                              options=options)
     return driver
 
 
-#DONE
+
 def get_MPC_1_line(my_list):
+    """
+    Returns the MPC one-line elements for a set of objects
+    
+    Inputs: 
+        my_list: a list of strings representing objects for which MPC 
+                one-line elements need to be obtained.
+    Outputs:
+        data: a pandas dataframe containing the MPC one-line elements for
+              for all the objects on my_list seperated by columns. 
+    
+    """
+
+    file_path = '/Users/cassandralejoly/Downloads/elements.txt'
+
+
+    # Obtain the driver to the Minor Planet Center    
     driver = get_driver()
     driver.get("https://minorplanetcenter.net/iau/MPEph/MPEph.html")
 
-    if os.path.exists('/Users/cassandralejoly/Downloads/elements.txt'):
-        os.unlink('/Users/cassandralejoly/Downloads/elements.txt')
-    reset = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//input[@type='reset']")))
-    submit = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//input[@type='submit']")))
-    text_box = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "textarea")))
-    MPC_1_line = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, "//input[@value='-1']")))
+    # Remove previous instances of the elements.txt file if they exist
+    if os.path.exists(file_path):
+        os.unlink(file_path)
 
+    # Declare all buttons to be used on the webpage
+    reset = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((
+            By.XPATH, "//input[@type='reset']"
+            )))
+    submit = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((
+            By.XPATH, "//input[@type='submit']"
+            )))
+    text_box = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((
+            By.TAG_NAME, "textarea"
+            )))
+    MPC_1_line = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((
+            By.XPATH, "//input[@value='-1']"
+            )))
+
+    # Interact with webpage
     reset.click()
     for i in my_list:
         text_box.send_keys(i+"\n")
     MPC_1_line.click()
     submit.click()
 
-
-    file_path = '/Users/cassandralejoly/Downloads/elements.txt'
+    # Wait for file to download (it can take a few seconds)
     while not os.path.exists(file_path):
-        time.sleep(0.5)
-    
-    columns=[(0,7),(7,13),(14,19), (19,25), (25,35), (35,46), (46,57), (57,68), (68,79),(79,91),(91,103),(103,106), (106,116), (116,122), (122,126), (126,136), (136,141), (141,145), (145,149),(149,160), (160,165), (165,191), (191,202)]
+        time.sleep(0.5)    
 
+    # Separate text file into columns
+    columns=[(0,7),(7,13),(14,19), (19,25), (25,35), (35,46), 
+             (46,57), (57,68), (68,79),(79,91),(91,103),
+             (103,106), (106,116), (116,122), (122,126), 
+             (126,136), (136,141), (141,145), (145,149),
+             (149,160), (160,165), (165,191), (191,202)]
+
+    # Read file into Panda dataframe and remove downloaded text file
     data=pd.read_fwf(file_path, header=None, colspecs=columns)
-
     os.unlink('/Users/cassandralejoly/Downloads/elements.txt')
     driver.close()
     
@@ -77,46 +116,77 @@ def get_MPC_1_line(my_list):
 
 
 #DONE
-def MPC_Horizons_list(date1, date2, keep_desig):
+def MPC_Horizons_list(date1, date2, designations):
+    """
+    Returns the positional uncertainties at different times, the U value, and 
+    the last observed date
+    
+    Inputs:
+        date1: a date for the first measurement. Must be given in the 
+               datetime.strftime() format: .strftime('%Y-%m-%d') + ' hh:mm'
+        date2: the second date measurement (usually 6 months later) in the 
+               same format: .strftime('%Y-%m-%d') + ' hh:mm' 
+        designations: a list of object names for which to obtain measurements
+    Outputs:
+        Horizon_data: a pandas dataframe that includes the object name, H, U1,
+               arc length (split into 2 columns), desig, and last observation.
+    
+    """   
+    
+    # Obtaining the MPC one-line elements (100 elements at a time is the limit)
     MPC_list = []
-    for i in range(0, len(keep_desig), 100):
-        temp1 = get_MPC_1_line(keep_desig[i:i+100])
+    for i in range(0, len(designations), 100):
+        temp1 = get_MPC_1_line(designations[i:i+100])
         MPC_list.append(temp1)
     MPC = pd.concat(MPC_list)
 
+    # Retrieving the Object list in the correct format
     object_list=MPC[21][:]
 
-
-    # Get HORIZONS: 
-        
-    print('running horizons ...')
-    
-    horizons_data=pd.DataFrame()
-    for i in object_list:
-        try:
-            print(i)
-            #print('test')
-            Pos_uncertainty1=Horizons(i, date1)
-            Pos_uncertainty2=Horizons(i, date2)
-            U,LastObsUse=JPL_U(i)
-            temp=pd.DataFrame({'uncert1':[Pos_uncertainty1],'uncert2':[Pos_uncertainty2],'U2':[U],'LastObsUsed':[LastObsUse]})
-            data=[horizons_data, temp]
-            horizons_data=pd.concat(data, ignore_index=True)
-        except:
-            pass
-    #print(horizons_data)   
-
+    # Rearranging and renaming columns
     column_mapping = {0: 'Packed desig', 1: 'H', 11: 'U1', 15: 'arc length', 21: 'desig', 22: 'last obs in orbit'}
-    MPC.rename(columns=column_mapping, inplace=True)
-    
+    MPC.rename(columns=column_mapping, inplace=True)    
     MPC_keep = MPC.loc[:, ['Packed desig', 'H', 'U1', 'desig', 'last obs in orbit', 'arc length']]
-
-    
     MPC_keep[['arc', 'length']] = MPC_keep['arc length'].str.split('[- ]', expand=True)
+
+    # Printing progress to command line   
+    print('running horizons ...')
+
+    # Obtaining Horizon's information for objects in list
+    horizons_data=pd.DataFrame()
+    kept_objects=[]
+    for i in object_list:
+        #try:
+        Pos_uncertainty1=Horizons(i, date1)
+        Pos_uncertainty2=Horizons(i, date2)
+        U,LastObsUse=JPL_U(i)
+        temp=pd.DataFrame({'uncert1':[Pos_uncertainty1],
+                           'uncert2':[Pos_uncertainty2],
+                           'U2':[U],
+                           'LastObsUsed':[LastObsUse]})
+        data=[horizons_data, temp]
+        horizons_data=pd.concat(data, ignore_index=True)
+        kept_objects.append(i)
+        #except:
+        #pass #when data is missing for an object, it is skipped
+   
+    print(horizons_data)
+    
+    MPC_keep = MPC_keep[MPC_keep['desig'].isin(kept_objects)]
+    
+    print(MPC_keep)
+
+    # Making sure designation match
+    #common_objects=kept_objects['object'].isinstance(MPC_keep['desig'])
+    
+    #common_elements = df1[df1['A'].isin(df2['A'])]
+    #print(common_object)
+    #MPC_keep = MPC_keep[MPC_keep['desig'].isinstance(common_object)]
+    #print(MPC_keep)
+
         
-    sort_dirty = pd.concat([MPC_keep.reset_index(drop=True), horizons_data.reset_index(drop=True)], axis=1, ignore_index=False)
-    sort_dirty.to_csv('sort_dirty.csv')
-    return sort_dirty  
+    Horizon_data = pd.concat([MPC_keep.reset_index(drop=True), horizons_data.reset_index(drop=True)], axis=1, ignore_index=False)
+    return Horizon_data  
     
 
  
