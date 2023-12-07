@@ -195,8 +195,8 @@ def main():
     #filename='small_bodies_list.txt'
 
     print('downloading UnnObs ...')
-    #inputpathfile=downloading_UnnObs() 
-    inputpathfile='UnnObs_20231031.txt'
+    inputpathfile=downloading_UnnObs() 
+    #inputpathfile='UnnObs_20231031.txt'
 
 
     # Get the current date and time

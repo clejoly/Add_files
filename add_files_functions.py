@@ -36,7 +36,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 
 def get_driver():
-    """ Sets the chromedriver location and allows it to be ran automatically """
+    """ Sets the chromedriver location """
     options = webdriver.ChromeOptions()
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
@@ -115,7 +115,7 @@ def get_MPC_1_line(my_list):
 
 
 
-#DONE
+
 def MPC_Horizons_list(date1, date2, designations):
     """
     Returns the positional uncertainties at different times, the U value, and 
@@ -144,10 +144,13 @@ def MPC_Horizons_list(date1, date2, designations):
     object_list=MPC[21][:]
 
     # Rearranging and renaming columns
-    column_mapping = {0: 'Packed desig', 1: 'H', 11: 'U1', 15: 'arc length', 21: 'desig', 22: 'last obs in orbit'}
+    column_mapping = {0: 'Packed desig', 1: 'H', 11: 'U1', 15: 
+                      'arc length', 21: 'desig', 22: 'last obs in orbit'}
     MPC.rename(columns=column_mapping, inplace=True)    
-    MPC_keep = MPC.loc[:, ['Packed desig', 'H', 'U1', 'desig', 'last obs in orbit', 'arc length']]
-    MPC_keep[['arc', 'length']] = MPC_keep['arc length'].str.split('[- ]', expand=True)
+    MPC_keep = MPC.loc[:, ['Packed desig', 'H', 'U1', 'desig', 
+                           'last obs in orbit', 'arc length']]
+    MPC_keep[['arc', 'length']] = MPC_keep['arc length'].str.split('[- ]', 
+                                                                   expand=True)
 
     # Printing progress to command line   
     print('running horizons ...')
@@ -156,53 +159,72 @@ def MPC_Horizons_list(date1, date2, designations):
     horizons_data=pd.DataFrame()
     kept_objects=[]
     for i in object_list:
-        #try:
-        Pos_uncertainty1=Horizons(i, date1)
-        Pos_uncertainty2=Horizons(i, date2)
-        U,LastObsUse=JPL_U(i)
-        temp=pd.DataFrame({'uncert1':[Pos_uncertainty1],
-                           'uncert2':[Pos_uncertainty2],
-                           'U2':[U],
-                           'LastObsUsed':[LastObsUse]})
-        data=[horizons_data, temp]
-        horizons_data=pd.concat(data, ignore_index=True)
-        kept_objects.append(i)
-        #except:
-        #pass #when data is missing for an object, it is skipped
-   
-    print(horizons_data)
+        print(i)
+        try:
+            Pos_uncertainty1=Horizons(i, date1)
+            Pos_uncertainty2=Horizons(i, date2)
+            U,LastObsUse=JPL_U(i)
+            temp=pd.DataFrame({'uncert1':[Pos_uncertainty1],
+                               'uncert2':[Pos_uncertainty2],
+                               'U2':[U],
+                               'LastObsUsed':[LastObsUse]})
+            data=[horizons_data, temp]
+            horizons_data=pd.concat(data, ignore_index=True)
+            kept_objects.append(i)
+        except:
+            print(i + " not found")
+            pass #when data is missing for an object, it is skipped
     
+    
+    # Keeping only objects that have Horizon measurements
     MPC_keep = MPC_keep[MPC_keep['desig'].isin(kept_objects)]
-    
-    print(MPC_keep)
-
-    # Making sure designation match
-    #common_objects=kept_objects['object'].isinstance(MPC_keep['desig'])
-    
-    #common_elements = df1[df1['A'].isin(df2['A'])]
-    #print(common_object)
-    #MPC_keep = MPC_keep[MPC_keep['desig'].isinstance(common_object)]
-    #print(MPC_keep)
-
-        
-    Horizon_data = pd.concat([MPC_keep.reset_index(drop=True), horizons_data.reset_index(drop=True)], axis=1, ignore_index=False)
+    Horizon_data = pd.concat([MPC_keep.reset_index(drop=True), 
+                              horizons_data.reset_index(drop=True)], 
+                             axis=1, ignore_index=False)
     return Horizon_data  
     
 
- 
-
-#DONE
-def Horizons(Object_name, date, max_attempts=3, delay=0.5):
+def Horizons(Object_name, date, max_attempts=3, delay=0.25):
+    """
+    Queries the Horizon's JPL API based on the object's name and the given 
+    date to return the Ephemerides at 691 and extract the positional 
+    uncertainty in arcseconds
+    
+    Inputs: 
+        Object_name: the unpacked name of an asteroid as a string
+        date: The date and time to query the ephemerides.Must be given in the 
+               datetime.strftime() format: .strftime('%Y-%m-%d') + ' hh:mm'
+    Output:
+        Pos_uncertainty: The positional uncertainty of the asteroid at the 
+        given date and time in arcseconds given as a float.
+        
+    """
+    
+    # Parameters: 691 - 0.9m Spacewatch telescope
     Telescope = str(691)
+    
+    # Rewrite object name to fit in query format, and replace the space
     new_object = Object_name.replace(" ", "%20")
+    
+    # Querying Horizons to retrieve positional uncertainty
+    # It queries it up to three times because Horizons has a tendency to 
+    # time out every once in a while. In the case when Horizon's times out
+    # more than 3 times in a row, or the positional uncertainty is not 
+    # available, a value of 4900 is given.
     for attempt in range(max_attempts):
         try:
-            response = requests.get("https://ssd.jpl.nasa.gov/api/horizons.api?format=json&CENTER="+Telescope+"&TLIST='"+date+"'&TLIST_TYPE=CAL&COMMAND='DES="+new_object+"&QUANTITIES='38'")
+            response = requests.get(
+                "https://ssd.jpl.nasa.gov/api/horizons.api?format=json"
+                "&CENTER="+Telescope
+                +"&TLIST='"+date
+                +"'&TLIST_TYPE=CAL"
+                "&COMMAND='DES="+new_object
+                +"'&QUANTITIES='38'")
             data = pd.DataFrame.from_dict(response.json(), orient="columns")
             new_data = data['result'].str.split('\n', expand=True)
             i = 0
             while i < len(new_data.columns) - 2:
-                if new_data[i]['version'] == '$$SOE' and new_data[i + 2]['version'] == '$$EOE':
+                if (new_data[i]['version'] == '$$SOE' and new_data[i + 2]['version'] == '$$EOE'):
                     line_of_interest = new_data[i + 1]['version']
                     Pos_uncertainty = float(line_of_interest[30:41])
                 i += 1
@@ -216,11 +238,27 @@ def Horizons(Object_name, date, max_attempts=3, delay=0.5):
     return Pos_uncertainty
 
 
-#DONE
 def JPL_U(Object_name):
+    """
+    Queries the JPL small body Database API for the U value and the last 
+    date it was observed for a given asteroid
+    
+    Input:
+        Object_name: The unpacked name of the asteroid as a string.
+    Output:
+        U: the condition_code (U value) of the asteroid as obtained from the 
+            JPL small body database given as a float
+        LastObsUse: The date of the last observation used in the orbit
+            calculation given as a string in the format 'YYYY-MM-DD'    
+    """
+    
+    # Querying the small body database to obtain the U value. If the U value
+    # and Last observed date query fails, an automatic value is set as U=0, 
+    # and date = '2000-01-01'
     try:
         new_object=Object_name.replace(" ","%20")
-        response = requests.get("https://ssd-api.jpl.nasa.gov/sbdb.api?sstr="+new_object+"")
+        response = requests.get("https://ssd-api.jpl.nasa.gov/sbdb.api?sstr="
+                                +new_object+"")
         data=pd.DataFrame.from_records(response.json())
         #data.to_csv('test_2.csv')
         U=data['orbit']['condition_code']

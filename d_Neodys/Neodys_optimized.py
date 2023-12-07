@@ -82,10 +82,15 @@ def get_neodys_list(date):
                         print(line, file=f)
         i += 1
 
+    # Removing downloaded files
+    if os.path.exists("PLfile.txt"):
+        os.unlink("PLfile.txt")
+    if os.path.exists("FOfile.txt"):
+        os.unlink("FOfile.txt")
+
+
     return str('neodys_full_list_'+date+'.txt')
     
-
-
 
 def add_space(list_object):
     new_list=[]
@@ -113,10 +118,6 @@ def main():
     date2 = day_after_tomorrow.strftime('%Y-%m-%d') + ' 07:30'
     
 
-
-
-    #date1='2023-04-25 07:30' #input("What is the first date and time? ex: 2022-03-29 07:30 ")
-    #date2='2023-04-26 07:30' #input("what is the second date and time? ex: 2022-04-10 07:30 ")
     date = date_today.replace('-', '')
     date_short = date[2:]
 
@@ -133,10 +134,13 @@ def main():
     
     Neodys_data=add_files.MPC_Horizons_list(date1, date2, lines)
     
-    #print('Sorting files now ...')
+    print('Sorting files now ...')
     add_files.sortall(date_today, Neodys_data, 'd_NEODYS_'+date_short+'.txt')
 
 
+    # Deleting remaining files
+    if os.path.exists(filename):
+        os.unlink(filename)
     
     
     

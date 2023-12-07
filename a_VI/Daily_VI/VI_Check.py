@@ -39,7 +39,7 @@ def Horizons_import(Object_name,start_time,end_time,step_size_min,Telescope):
     #print(data)
     new_data=data['result'].str.split('\n', expand=True)
     #print(new_data)
-    new_data.to_csv('test.csv',index=False)
+    #new_data.to_csv('test.csv',index=False)
     observable=pd.DataFrame(columns=['MJD','RA', 'DEC', 'RA_rate', 'DEC_rate', 'Brightness', 'lunar_distance', 'POS_3sig', 'Twilight'])
     i=0
     while i<(len(new_data.columns)): 
