@@ -1,2 +1,5 @@
 .DS_Store
 f_NEOWISE/UnnObs*.txt
+*.xlsx
+*.csv
+*.txt
