@@ -27,14 +27,6 @@ from selenium.webdriver.support import expected_conditions as EC
 
 
 
-
-
-
-
-
-
-
-
 def get_driver():
     """ Sets the chromedriver location """
     options = webdriver.ChromeOptions()
@@ -43,7 +35,6 @@ def get_driver():
     driver = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', 
                               options=options)
     return driver
-
 
 
 def get_MPC_1_line(my_list):
@@ -112,8 +103,6 @@ def get_MPC_1_line(my_list):
     driver.close()
     
     return data
-
-
 
 
 def MPC_Horizons_list(date1, date2, designations):
@@ -224,7 +213,8 @@ def Horizons(Object_name, date, max_attempts=3, delay=0.25):
             new_data = data['result'].str.split('\n', expand=True)
             i = 0
             while i < len(new_data.columns) - 2:
-                if (new_data[i]['version'] == '$$SOE' and new_data[i + 2]['version'] == '$$EOE'):
+                if (new_data[i]['version'] == '$$SOE' 
+                        and new_data[i + 2]['version'] == '$$EOE'):
                     line_of_interest = new_data[i + 1]['version']
                     Pos_uncertainty = float(line_of_interest[30:41])
                 i += 1
@@ -268,70 +258,124 @@ def JPL_U(Object_name):
         LastObsUse='2000-01-01'
     return U,LastObsUse
 
+ 
+def sortall(today_date,data_table,outfile):
+    """
+    Sorts the objects to decide which ones to keep based on 691's parameters. 
+    This takes the list of objects with their parameters, and returns a 
+    text file with all the objects kept, named as provided in the function.
+    
+    Inputs:
+        today_date: The current date, given as a string in the format
+            'YYYY-mm-dd'
+        data_table: a list of objects, with the necessary Horizon's information
+            as a pandas dataframe.
+        outfile: The name of the file in which the objects that will be kept
+            are saved into.
+    Outputs:
+        None from function, but a text file with objects kept is saved as
+            outfile.
+    """
+    
 
-#DONE  
-def sortall(today_date,sort_dirty,outfile):
-    print('Sorting\n')
+    # Parameters set up, for what to keep in the list.
     min_uncert=float(1.0)   
     today_date_datetime=datetime.datetime.strptime(today_date, '%Y-%m-%d')
     year_from_date=today_date_datetime-datetime.timedelta(days=365.2425)
     Max_uncertainty=float(4800.0) #in arcseconds
  
-    print(sort_dirty)
+    
     
     # Convert the columns to float and datetime
     try:
-        sort_dirty['uncert1'] = sort_dirty["uncert1"].astype(float)
+        data_table['uncert1'] = data_table["uncert1"].astype(float)
     except ValueError:
-        sort_dirty['uncert1'] = float(4900.0)
+        data_table['uncert1'] = float(4900.0)
     
     try:
-        sort_dirty['uncert2'] = sort_dirty["uncert2"].astype(float)
+        data_table['uncert2'] = data_table["uncert2"].astype(float)
     except ValueError:
-        sort_dirty['uncert2']= float(4900.0)
+        data_table['uncert2']= float(4900.0)
     
     try:
-        sort_dirty['U1'] = sort_dirty["U1"].astype(float)
+        data_table['U1'] = data_table["U1"].astype(float)
     except ValueError:
-        sort_dirty['U1'] = float(10.0)
+        data_table['U1'] = float(10.0)
     
     try:
-        sort_dirty['U2'] = sort_dirty["U2"].astype(float)
+        data_table['U2'] = data_table["U2"].astype(float)
     except ValueError:
-        sort_dirty['U2'] = float(10.0)
+        data_table['U2'] = float(10.0)
     
     try:
-        sort_dirty['arc'] = sort_dirty["arc"].astype(float)
+        data_table['arc'] = data_table["arc"].astype(float)
     except ValueError:
-        sort_dirty['arc'] = float(1000)
+        data_table['arc'] = float(1000)
     
     try:
-        sort_dirty['LastObsUsed'] = pd.to_datetime(sort_dirty["LastObsUsed"], errors='coerce')
+        data_table['LastObsUsed'] = pd.to_datetime(
+            data_table["LastObsUsed"], 
+            errors='coerce')
     except ValueError:
-        sort_dirty['LastObsUsed'] = pd.to_datetime('2000-01-01')
+        data_table['LastObsUsed'] = pd.to_datetime('2000-01-01')
         
 
-    keep = sort_dirty[(sort_dirty['uncert1'] < Max_uncertainty) & (sort_dirty['uncert2'] < Max_uncertainty)]
-    keep = keep[((sort_dirty['uncert1'] > min_uncert) | (sort_dirty['uncert2'] > min_uncert)) |
-                ((sort_dirty['uncert1'] < min_uncert) & (sort_dirty['uncert2'] < min_uncert) & (sort_dirty['arc'] < 100) & (sort_dirty['LastObsUsed'] < year_from_date))| (((sort_dirty['uncert1'] < min_uncert) & (sort_dirty['uncert2'] < min_uncert))& (((sort_dirty['U1'] != 0) & (sort_dirty['U2'] != 0))|((sort_dirty['U1'] != 1) & (sort_dirty['U2'] != 0))|((sort_dirty['U1'] != 0) & (sort_dirty['U2'] != 1))|((sort_dirty['U1'] != 1) & (sort_dirty['U2'] != 1))))]
+    # From data_table, keep only the objects with the uncertainties less than
+    # the max uncertainty. 
+    keep = data_table[(
+        (data_table['uncert1'] < Max_uncertainty) 
+        & (data_table['uncert2'] < Max_uncertainty))]
     
+    # From data left, keep objects where:
+    #   1) the one uncertainty is greater than the minimum uncertainty OR
+    #   2) Where both uncertainties are less than the minimum uncertainty AND
+    #      the observing arc is less than 100 days AND the last observed date
+    #      is less than a year ago from today OR
+    #   3) The uncertainties are less than the minimum uncertainty AND the U1
+    #      and U2 parameters do not equal zero or one.
+    keep = keep[(((data_table['uncert1'] > min_uncert) 
+                  | (data_table['uncert2'] > min_uncert)) 
+                 |((data_table['uncert1'] < min_uncert) 
+                   & (data_table['uncert2'] < min_uncert) 
+                   & (data_table['arc'] < 100) 
+                   & (data_table['LastObsUsed'] < year_from_date))
+                 | (((data_table['uncert1'] < min_uncert) 
+                     & (data_table['uncert2'] < min_uncert))
+                    & (((data_table['U1'] != 0) 
+                        & (data_table['U2'] != 0))
+                       |((data_table['U1'] != 1) 
+                         & (data_table['U2'] != 0))
+                       |((data_table['U1'] != 0) 
+                         & (data_table['U2'] != 1))
+                       |((data_table['U1'] != 1) 
+                         & (data_table['U2'] != 1)))))]
+    
+    # Keep only the designation from the sorted file and save to text file.
     desig = keep['desig']
-    print(desig)
     desig.to_csv(outfile, header=False, index=False)
-
-    # # remove last line of text file
-    # with open(outfile) as f:
-    #     lines = f.readlines()
-    # with open(outfile, "w") as f:
-    #     f.writelines(lines[:-1])
     
     
-    
-#DONE 
 def remove_duplicate(data,packed):
-    print(len(data))
+    """
+    This removes duplicate objects in a list of objects, given that they
+    are in packed or unpacked format.
+    
+    Inputs:
+        data: the list of objects to remove duplicates from. It can be in
+            packed or unpacked format.
+        packed: a string with either 'y' or 'n' to determine if the objects 
+            are given in packed or unpacked designation.
+    Outputs:
+        keepdesigs: a list of objects that are not duplicated, given as a 
+            series of strings.
+    """
+    
+    # Set up arrays to fill.
     inputlines = data
     targets = []
+    
+    # Determines if the objects are in packed or unpacked format, and either
+    # keeps them or changes them to packed designation
     if packed.lower() == 'y':
         for x in inputlines:
             if x[0] == 'b':
@@ -343,53 +387,94 @@ def remove_duplicate(data,packed):
         for x in inputlines:
             targets.append(PackDesig(x))
 
+    # Checks that all objects have been packed correctly and raises an 
+    # error if they were not.
     for i in targets:
         if len(i) > 7: raise ValueError('File was not parsed correctly.')
-    # Remove duplicates using a set
+    
+    # Remove duplicates using a set and return it.
     keepdesigs = list(set(targets))
-    print(len(keepdesigs))
-
     return keepdesigs    
 
 
 
-#DONE
 def PackDesig(ProvDesig):
-    ProvDesig = ProvDesig.strip()  # strip off any leading or trailing spaces
+    """
+    Changes the provisional designation of objects to a Packed designation.
+    
+    Input:
+        ProvDesig: The provisional designation of an object as a string.
+    Output: 
+        Outdesig: The packed designation of the same object as a string.
+    """
+
+    # Strip off ann leading or trailing spaces.
+    ProvDesig = ProvDesig.strip()
+    
+    # Break up the string into its corresponding components
     century = ProvDesig[0:2]
     year = ProvDesig[2:4]
     MonthCode = ProvDesig[5:7]
     cycle = ProvDesig[7:]
     CycleDigits = len(cycle)
     
+    # Fills the cycle character with leading zeros such that it is at least 2 
+    # characters long.
     CycleOutStr = cycle.zfill(2)    
     
+    # if there are more than 2 characters in the cycle string, it changes
+    # the characters to the correct packed designation cycle number output.
     if (CycleDigits > 2):
         alphas='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
         FinalDigit = cycle[(CycleDigits-1):]
         FirstDigits = int(cycle[0:(CycleDigits-1)])
-        CycleOutStr = alphas[FirstDigits - 10] + FinalDigit #fixing incorrect letters
+        CycleOutStr = alphas[FirstDigits - 10] + FinalDigit
     
-    CenturyStr = chr(int(century) - 10 + ord('A'))        
+    # Picks the correct letter for the century with J=1900 and K=2000 
+    CenturyStr = chr(int(century) - 10 + ord('A'))  
+
+    # Writes out the packed designation and returns it.      
     OutDesig = CenturyStr + year + MonthCode[0] + CycleOutStr + MonthCode[1]
     return(OutDesig)
 
 
 
-
-#DONE
 def site_sort(inputpathfile):
+    """
+    This sorts the unobs file such that it only keeps the Objects observed by
+    C51 (NEOWISE) that are not numbered and from 1800 - present
+    
+    Input:
+        inputpathfile: the location of the unobs file as a string.
+    Output:
+        keepdesigs: A list of objects that were observed by C51 and from
+            1800 - present.
+    """
+    
+    # Determine the obscode of NEOWISE
     obscode = 'C51'
 
+    # Choose which character corresponds to which column, and only keep the 
+    # designation and the OBSCODE. Then reads in the file in chuncks as it is
+    # a really large data set
     columns = [(0, 5), (5, 12), (77, 80)]
-    chunksize = 1000000 # number of rows to read at a time
+    chunksize = 1000000
     data = pd.DataFrame()
     
-    for chunk in pd.read_fwf(inputpathfile, header=None, colspecs=columns, usecols=[1, 2], chunksize=chunksize):
+    # Reads in the data in chunks, keeping only the object name, and the 
+    # OBSCODE.
+    for chunk in pd.read_fwf(inputpathfile, 
+                             header=None, 
+                             colspecs=columns, 
+                             usecols=[1, 2], 
+                             chunksize=chunksize):
         print('chunk done')
         data = pd.concat([data, chunk])
 
 
+    # Keep only the objects with Observatory code as given, and that start
+    # with 'I', 'J', or 'K', representing either 1800s, 1900s, or 2000s, then
+    # returns the list of objects only.
     keepdesigs = set()
     for objects, telescope in data.itertuples(index=False):
 
@@ -399,30 +484,50 @@ def site_sort(inputpathfile):
     return list(keepdesigs)
 
 
-#DONE
 def UnpackDesig(PackedDesig):
+    """
+    Unpacks a packed designation to change it to a provisional designation.
+    
+    Input:
+        PackedDesig: an object in packed designation given as a string.
+    Output:
+        OutDesig: The same object given in a provisional designation.
+    """
+    
+    # Picks out the century character and changes it to the correct first 2
+    # characters representing the century.
     CenturyStr = PackedDesig[0]
-    #print(CenturyStr)
     CenturyChar = 'IJK'
     century = str(CenturyChar.index(CenturyStr) + 18)
+    
+    # Picks out the year in short-form (ie: YY).
     year = PackedDesig[1:3]
+    
+    # Picks out the two characters representing the half-month portion of the
+    # designation
     HalfMonth1 = PackedDesig[3]
     HalfMonth2 = PackedDesig[6]
+    
+    # Picks out the cycle characters, then changes it to the appropriate cycle
+    # format. This includes finding the index of the first character, 
+    # multiplying it by 10 to put it in the correct format, then adding the 
+    # second character.
     Cycle1 = PackedDesig[4]
     Cycle2 = PackedDesig[5]
-    CycleChar = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    CycleChar = ("0123456789"
+                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                 "abcdefghijklmnopqrstuvwxyz")
     cycle =str(CycleChar.find(Cycle1) * 10 + int(Cycle2))
     if cycle == '0':
         cycle = ''
+
+    # Formats the unpacked designatiion as a string and returns the new name.
     OutDesig = f"{century}{year} {HalfMonth1}{HalfMonth2}{cycle}"
     return OutDesig
 
 
-
-
-
-
 def Target_compare(List1,List2):
+    """ Finds the object in two lists, and returns the common ones. """
     target_file = set(List1[0])
     detected_file = set(List2[0])
     observed_targets = target_file & detected_file

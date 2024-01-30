@@ -123,6 +123,10 @@ def get_small_bodies():
     
     with open('small_bodies_list.txt', 'w') as f:
         f.writelines(lines)
+        
+    os.unlink('merged_list.txt')
+    
+    
     return 'small_bodies_list.txt'
             
 
@@ -196,7 +200,7 @@ def main():
 
     print('downloading UnnObs ...')
     inputpathfile=downloading_UnnObs() 
-    #inputpathfile='UnnObs_20231031.txt'
+    # inputpathfile='UnnObs_20231128.txt'
 
 
     # Get the current date and time
@@ -264,14 +268,16 @@ def main():
         keep_desig = pd.concat([keep_desig, chunk])
 
     sort_dirty=add_files.MPC_Horizons_list(date1, date2, keep_desig[0])
-    sort_dirty.to_csv('sort_dirty.csv',index=False)
+    # sort_dirty.to_csv('sort_dirty.csv',index=False)
 
 
     
     add_files.sortall(today_date,sort_dirty,'f_NEOWISE_'+date_short+'.txt')
     
-
-    
+    os.unlink('observed_out.txt')
+    os.unlink("unpacked_asteroid_in_C51.txt")
+    os.unlink(filename)
+   
     
     
 if __name__ == "__main__":  main()

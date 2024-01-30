@@ -144,103 +144,6 @@ def Urgency(Cum_prob, first_impact, JD_now):
     return urg
 
 
-def accesshorizons(targets, targetpathfile, obscode, start_time, stop_times):
-    print("number of targets: ", len(targets), " length of 1st target name: ", len(targets[0]))
-    for i in targets:
-        if len(i) > 10: raise ValueError('File was not read correctly.')
-    j=0
-    while j<len(targets):        
-        #targets[j]= targets[j].replace(b'\r', ' ')  #remove hard stop from close approach table objects -->may not be necessary anymore with python3
-#        targlist.append("'DES= "+targets[j].replace('_',' ')+"'")
-        j +=1
-
-    s=targetpathfile.rsplit('.txt')
-# create a file for asteroid names and JPL H, V, uncert, U code, date of last obs used in orbit sol'n, orbital classification 
-    outputpathfile = s[0] + "_Vmin_Data_" + obscode + ".txt"  #HVUncertULastObsClass
-    outVminfile = open(outputpathfile, 'w')
-    header = '{:15}{:20}{:20}{:10}{:10}{:35} \n'.format('Target','start time','stop time','Hmag','Vmin','Vmin Date           Time Step=1d')
-    outVminfile.write(header)
-    
-#    outstatusfile = open(s[0] + "_status.txt", 'w')    
-    
-    header="!$$SOF\n"
-    footer="!$$EOF"
-    step1="COMMAND="
-    step2="\nMAKE_EPHEM='YES'\nTABLE_TYPE='OBSERVER'\nCENTER='"+obscode
-    step3="'\nSTART_TIME="+start_time+"\nSTOP_TIME="
-    step4="\nSTEP_SIZE='1 d'\nQUANTITIES='1,3,8,9,19,20,24,25,37,38'\nANG_FORMAT='DEG'\nCSV_FORMAT='YES'\n"
-
-
-    #prepare input to JPL Horizons form
-    url="https://ssd.jpl.nasa.gov/api/horizons_file.api"
-#    for targ in targlist:  #iterate through target list  
-
-
-#*****make this a while loop
-    i=0
-    temp=pd.DataFrame(columns=['asttemp','start_time', 'datetemp', 'Hmag','minV','Vmindate'])
-    while i< len(targets):
-        asttemp=targets[i]
-        datetemp="'"+stop_times[i]+"'"
-
-#          outstatusfile.write(asttemp + '\n')  #added to follow/test progress
-        targ="'DES= "+asttemp.replace('_',' ')+"'"
-        print(targ)        
-#figure out stop time from while
-        quants=header+step1+targ+step2+step3+datetemp+step4+footer
-        response=requests.post(url,data={'format':'text'},files={'input':quants})
-        output=response.text
-        the_lines=output.split('\n')   #separate data into individ lines
-#        lineabove = [x for x in the_lines if "ROTPER" in x]  #search for html line above Hmag
-#        indexabove= the_lines.index(lineabove[0])      #get the index of that line
-#        linecontent = the_lines[indexabove+1]      #increment to index of Hmag value
-        Hline=the_lines[19]
-        absmagplus=Hline.split('=')[1] #strip off the beginning string to Hmag value [was linecontent]
-        Hmag=absmagplus.split(' ')[1] 
-        #strip off end string, print value to file       
-        starteph=0
-        counter=0
-        date=[]  #declare lists in which to save data from eph lines
-        Vmag=[]
-
-        for line in the_lines:  #for each line in ephemeris
-            line = line.strip()
-            # insert query to grab H     
-            if line == "$$SOE":
-                #print "Started ephemeris section" #added to follow/test progress
-                starteph = 1
-            elif line == "$$EOE":
-                print("Ended ephemeris section") #added to follow/test progress
-                break
-            if starteph == 1:
-#                print line
-                lineparts = line.split(",")
-                if len(lineparts) >= 17:   # good line, now parse it  
-                    date.append(lineparts[0])
-#                    print(float(lineparts[9]))
-                    Vmag.append(float(lineparts[9])) #poor approx apparent V
-#                    print(repr(lineparts[17]))
-#                    print(lineparts[0],'date', lineparts[9], 'mag')
- #                   sys.exit()
-                    counter = counter + 1  #lines in the ephemeris
-
-        Vmag=np.array(Vmag)     
-        minV = min(Vmag)
-        result=np.where(Vmag == minV)  #find where Vmag is equal to Vmin
-        IndexArray=result[0]     # tuple of indices where the min V values are found
-        indices=np.array(IndexArray)
-        Vmindate=date[indices[0]]
-        output = '{:15}{:20}{:21}{:10}{:<10}{:20} \n'.format(asttemp,start_time,datetemp,Hmag,minV,Vmindate)
-        #make the widths of columns 14char, 8char, etc.
-        outVminfile.write(output)
-        time.sleep(1)
-        i=i+1
-        temp.loc[len(temp)]=[asttemp,start_time,datetemp,Hmag,minV,Vmindate]
-        
-    outVminfile.close()
-    return temp
-        
-
 def accesshorizons2(targets, Telescope, start_time, stop_times):
     """
     Retrieve the date of minimum Vmag and create a dataframe that returns that
@@ -278,7 +181,9 @@ def accesshorizons2(targets, Telescope, start_time, stop_times):
     # Run through all objects in targets (list)
     for object_name, end_time in zip(targets, stop_times):
         print(object_name)
-        for attempt in range(3):
+        max_attempts = 3
+        i=0
+        while i < max_attempts:
             try:
                 # Obtaining data from Horizons
                 new_object=object_name.replace(" ","%20")
@@ -298,9 +203,7 @@ def accesshorizons2(targets, Telescope, start_time, stop_times):
                     "&QUANTITIES='9'")
                 data=pd.DataFrame.from_dict(response.json(),orient="columns")
                 new_data=data['result'].str.split('\n', expand=True)
-        
-                new_data.to_csv("test4.csv", index=False)
-                
+                        
                 
                 # Obtaining Vmag and date for Vmag
                 observable=pd.DataFrame(columns=['date', 'Vmag'])
@@ -311,7 +214,9 @@ def accesshorizons2(targets, Telescope, start_time, stop_times):
                         temp = new_data[i]['version']
                         if " H= " in temp:
                             index_H = temp.find(" H= ")
-                            H_mag = float(temp[index_H + len(" H= "):index_H + len(" H= ") + 5])
+                            H_mag = float(temp[index_H 
+                                               + len(" H= "):index_H 
+                                               + len(" H= ") + 5])
                        
                         if temp[1:3]=='20' or temp[1:4]=='21':
                             date_time=temp[1:18]
@@ -334,9 +239,13 @@ def accesshorizons2(targets, Telescope, start_time, stop_times):
                                                H_mag, 
                                                Vmin, 
                                                date_Vmin]
+                i=3
             except:
-                if attempt < max_attempts - 1:
+                if i < max_attempts - 1:
                     time.sleep(0.25)
+                    i+=1
+                else:
+                    "No Horizon's data"
 
     return Vmin_data
 
@@ -540,18 +449,18 @@ def clean_arc_length(data_all):
         '-', n=2, expand=True)
     data_all['First_impact'] = data_all['First_impact'].values.astype(int)
     
-    # Filling the "arc_length) newly created column with foo data
+    # Filling the "arc_length") newly created column with foo data
     data_all['arc_length'] = data_all['First_impact'].values.astype(int)
 
     # Changing the arc_length to either a number of days (as int) or taking 
     # it from the range of years (as float). If there is no given range, we 
     # assume a very small arc range of 0.2 days.
     i=0
-    while i<len(data_all['arc length']):
+    while i < len(data_all['arc length']):
         if '-' in data_all['arc length'][i]:
             templist=data_all['arc length'][i].split('-',1)
-            data_all['arc_length'][i]=[(int(templist[1])
-                                        -int(templist[0])) * 365.2425]
+            data_all['arc_length'][i]=((float(templist[1])
+                                        -float(templist[0])) * 365.2425)
         else:   
             templist=data_all['arc length'][i].split(' ',1)    
             data_all['arc_length'][i]=int(templist[0])
@@ -566,12 +475,26 @@ def main():
 
     # Obtaining latest 40 VI from sentry's VI list or from a given list
     # of objects. Chose one of the two options below:
-    #   Option 1:
-    data_sentry = get_top_40_VIs()
-    #   Option 2:
-    # object_list = 'VI_list.txt'
-    # data_sentry = get_specific_VIs(object_list):
+   
+        
+    #########
+    # #   Option 1 --> weekly PF calculations:
+    # data_sentry = get_top_40_VIs()
+    #########
+    
+    
+    ###########
+    #   Option 2 --> Getting specific VIs to calculate:
+    filename = 'VI_list.txt'
+    # Open the file in read mode
+    with open(filename, 'r') as file:
+        # Read the content of the file
+        content = file.read()    
 
+        # Split the content into lines and create a list
+        object_list = content.splitlines()
+    data_sentry = get_specific_VIs(object_list)
+    ###########
 
     
     # Preamble (set up time, and chose parameters)
@@ -617,7 +540,8 @@ def main():
                         left_on="des", 
                         right_on="desig", 
                         how='outer')
-
+    # data_all.to_csv("test.csv", index=False)
+    
     data_all_new = clean_arc_length(data_all)
 
 
@@ -639,6 +563,14 @@ def main():
                           left_on="Prov. Des.", 
                           right_on="Object", 
                           how='outer')
+    # Change the format of the stop_time to a string with quotes around it.
+    i = 0
+    while i < len(final_data['stop_time']):
+        final_data['stop_time'][i]=(f"'{final_data['stop_time'][i]}'")
+        i+=1
+    
+    
+    
     final_data.to_csv("Finished_VI_PF_" + date_short + ".csv",  
                       index=False, 
                       header=False)

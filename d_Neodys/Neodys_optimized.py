@@ -34,7 +34,23 @@ from datetime import datetime, timedelta
 
 
 def get_neodys_list(date):
-    response = requests.get("https://newton.spacedys.com/neodys/priority_list/PLfile.txt")
+    """ 
+    This downloads the current NEODyS lists, combines them, and returns 
+    a list of all the OBJECTS on NEODyS's priority list with an Urgency 
+    higher than 'LOW'.
+    
+    Input: 
+        date - the current date to be used in the naming of the file
+        
+    Output: 
+        str('neodys_full_list_'+date+'.txt') - The name of the file that 
+        contains the combined NEODyS objects
+    
+    """
+    
+    # Request the NEODyS Priority list and read it into a pandas dataframe
+    response = requests.get(
+        "https://newton.spacedys.com/neodys/priority_list/PLfile.txt")
     with open("PLfile.txt", "wb") as file:
         file.write(response.content)
     PL_file = pd.read_csv("PLfile.txt")
@@ -46,8 +62,9 @@ def get_neodys_list(date):
     PL_file['urgency']=PL_file['urgency'].str.strip()
     PL_file['neodys_1']=add_space(PL_file['neodys_1'])
     PL_file=PL_file.reset_index()
-    #print(PL_file)
-
+    
+    # Remove all the objects with an 'urgency' of 'LOW' and make a text file
+    # of the remaining objects
     i=0
     with open('neodys_full_list_'+date+'.txt', 'w') as file:
         pass
@@ -56,7 +73,8 @@ def get_neodys_list(date):
             with open('neodys_full_list_'+date+'.txt','a') as f:
                 print(PL_file['neodys_1'][i],file=f)           
         i+=1
-        
+    
+    # Request
     response = requests.get("https://newton.spacedys.com/neodys/priority_list/FOfile.txt")
     with open("FOfile.txt", "wb") as file:
         file.write(response.content)
@@ -71,7 +89,7 @@ def get_neodys_list(date):
     FO_file['neodys_2']=add_space(FO_file['neodys_2'])
     FO_file=FO_file.reset_index()
     #print(FO_file)
-
+    
     i=0
     while i < len(FO_file['neodys_2']):
         if FO_file['urgency'][i].strip() != 'LOW':
@@ -81,7 +99,6 @@ def get_neodys_list(date):
                     with open('neodys_full_list_'+date+'.txt', 'a') as f:
                         print(line, file=f)
         i += 1
-
     # Removing downloaded files
     if os.path.exists("PLfile.txt"):
         os.unlink("PLfile.txt")
@@ -130,7 +147,7 @@ def main():
     with open(filename) as f:
         lines = [line.strip() for line in f.readlines()[:-1]]
 
-    
+
     
     Neodys_data=add_files.MPC_Horizons_list(date1, date2, lines)
     

@@ -79,10 +79,12 @@ def download_nhats_excel(date, target_word):
     # Combine the contents of the two text files
     combined_txt = pd.concat([filtered_NHATS3['fullname'], pd.Series(email_list.split('\n'))], axis=0, ignore_index=True)
     
+    filename = 'NHATS_combined_list.txt'
     # Save the combined text to a new file
-    with open('NHATS_combined_list.txt', 'w') as f:
+    with open(filename, 'w') as f:
         f.write('\n'.join(combined_txt))
 
+    return filename
     
     
     
@@ -93,7 +95,7 @@ def main():
 
     
     ### Inputs necessary: 
-    asteroid='(2021 XA)'  #2 years ago asteroid (or estimate)
+    asteroid='(2022 BW)'  #2 years ago asteroid (or estimate)
 
         
     # Get the current date and time
@@ -119,22 +121,7 @@ def main():
 
 
 
-
-
-    '''
-    date1='2023-05-16 07:30' #today
-    date2='2023-06-01 07:30' #next time it is run    
-    date3='2023-11-16'   #6 months from now
-
-    
-   
-    date_parts = date1.split(' ')
-    today_date = date_parts[0]  # '2023-03-11'
-    '''
-    
-    download_nhats_excel(date3,asteroid)
-
-    filename='NHATS_combined_list.txt'
+    filename = download_nhats_excel(date3,asteroid)
     file=pd.read_csv(filename, header=None)
 
 
@@ -158,7 +145,7 @@ def main():
     print('Sorting files now ...')
     add_files.sortall(today_date, NHATS_data, 'h_NHATS_'+date_short+'.txt')
         
-        
+    os.unlink(filename)   
     
     
     
