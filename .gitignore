@@ -3,3 +3,5 @@ f_NEOWISE/UnnObs*.txt
 *.xlsx
 *.csv
 *.txt
+Target_list
+__pycache__
